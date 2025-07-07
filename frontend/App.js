@@ -13,7 +13,7 @@ export default function App() {
         setLoading(false);
       })
       .catch(err => {
-        setMessage('Error al conectar con la API 😭');
+        setMessage('Error al conectar con la API 😭: omegalul');
         setLoading(false);
       });
   }, []);
