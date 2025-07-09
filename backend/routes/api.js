@@ -2,18 +2,60 @@ import express from 'express';
 import { 
     getHello, 
     getAllEvents, 
+    getEventById,
+    createEvent,
+    updateEvent,
+    deleteEvent,
+    enrollInEvent,
+    cancelEnrollment,
+    getEventParticipants,
     getEventByName, 
     getEventByStartDate, 
     getEventByTag 
 } from '../controllers/apiController.js';
+import { registerUser, loginUser } from '../controllers/userController.js';
+import { 
+    getUserEventLocations,
+    getEventLocationById,
+    createEventLocation,
+    updateEventLocation,
+    deleteEventLocation
+} from '../controllers/eventLocationController.js';
+import { authenticateToken } from '../middleware/auth.js';
 
 const router = express.Router();
 
 // Ruta de prueba
 router.get('/hello', getHello);
 
-// Rutas de eventos
-router.get('/events', getAllEvents);
+// Rutas de autenticación (sin autenticación requerida)
+router.post('/user/register', registerUser);
+router.post('/user/login', loginUser);
+
+// Rutas de eventos (públicas)
+router.get('/event', getAllEvents);
+router.get('/event/:id', getEventById);
+
+// Rutas de eventos (requieren autenticación)
+router.post('/event', authenticateToken, createEvent);
+router.put('/event/:id', authenticateToken, updateEvent);
+router.delete('/event/:id', authenticateToken, deleteEvent);
+
+// Rutas de inscripciones (requieren autenticación)
+router.post('/event/:id/enrollment', authenticateToken, enrollInEvent);
+router.delete('/event/:id/enrollment', authenticateToken, cancelEnrollment);
+
+// Rutas de participantes (requieren autenticación)
+router.get('/event/:id/participants', authenticateToken, getEventParticipants);
+
+// Rutas de ubicaciones de eventos (requieren autenticación)
+router.get('/event-location', authenticateToken, getUserEventLocations);
+router.get('/event-location/:id', authenticateToken, getEventLocationById);
+router.post('/event-location', authenticateToken, createEventLocation);
+router.put('/event-location/:id', authenticateToken, updateEventLocation);
+router.delete('/event-location/:id', authenticateToken, deleteEventLocation);
+
+// Rutas de búsqueda (mantener compatibilidad)
 router.get('/events/name/:name', getEventByName);
 router.get('/events/startdate/:startdate', getEventByStartDate);
 router.get('/events/tag/:tag', getEventByTag);
