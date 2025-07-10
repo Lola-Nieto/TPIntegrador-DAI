@@ -72,6 +72,14 @@ export const getAllEvents = async (req, res) => {
 
         const result = await client.query(sqlQuery, values);
 
+        // Si no hay eventos, responder con un mensaje adecuado
+        if (result.rows.length === 0) {
+            return res.status(StatusCodes.OK).json({
+                collection: [],
+                message: 'No hay eventos registrados en la base de datos.'
+            });
+        }
+
         // Obtener tags para cada evento
         const eventsWithTags = await Promise.all(
             result.rows.map(async (event) => {
@@ -136,6 +144,13 @@ export const getAllEvents = async (req, res) => {
 
     } catch (error) {
         console.error('Error obteniendo eventos:', error);
+        // Detectar error de conexión a la base de datos
+        if (error.code === 'ECONNREFUSED' || error.message.includes('connect') || error.message.includes('Connection')) {
+            return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+                success: false,
+                message: 'Error de conexión con la base de datos'
+            });
+        }
         res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
             success: false,
             message: 'Error interno del servidor'
