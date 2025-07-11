@@ -1,16 +1,16 @@
 import pkg from 'pg';
 import bcrypt from 'bcryptjs';
 import { StatusCodes } from 'http-status-codes';
-import config from '../configs/db-configs.js';
-import { generateToken } from '../middleware/auth.js';
+import config from '../../configs/db-configs.js';
+import { generateToken } from '../../middleware/auth.js';
+import {isValidEmail} from './validaciones/mailValidacion.js'
+import {isValidString} from './validaciones/stringValidacion.js'
+
 
 const { Client } = pkg;
 
 // Validación de email
-const isValidEmail = (email) => {
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    return emailRegex.test(email);
-};
+
 
 // Registro de usuario
 export const registerUser = async (req, res) => {
@@ -18,34 +18,13 @@ export const registerUser = async (req, res) => {
     const client = new Client(config);
 
     try {
-        // Validaciones
-        if (!first_name || first_name.length < 3) {
-            return res.status(StatusCodes.BAD_REQUEST).json({
-                success: false,
-                message: 'El nombre debe tener al menos 3 caracteres'
-            });
-        }
+        
+        isValidString(first_name, "nombre");
+        isValidString(last_name, "apellido");
 
-        if (!last_name || last_name.length < 3) {
-            return res.status(StatusCodes.BAD_REQUEST).json({
-                success: false,
-                message: 'El apellido debe tener al menos 3 caracteres'
-            });
-        }
+        isValidEmail(username);
 
-        if (!isValidEmail(username)) {
-            return res.status(StatusCodes.BAD_REQUEST).json({
-                success: false,
-                message: 'El email es inválido'
-            });
-        }
-
-        if (!password || password.length < 3) {
-            return res.status(StatusCodes.BAD_REQUEST).json({
-                success: false,
-                message: 'La contraseña debe tener al menos 3 caracteres'
-            });
-        }
+        isValidString(password, "contraseña");
 
         await client.connect();
 
