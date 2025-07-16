@@ -1,6 +1,11 @@
 import pkg from 'pg';
 import { StatusCodes } from 'http-status-codes';
 import config from '../../configs/db-configs.js';
+import {isValidEmail} from './validaciones/mailValidacion.js'
+import {isValidString} from './validaciones/stringValidacion.js'
+import {chequearSiExiste} from './validaciones/existenciaValidacion.js'
+
+
 
 const { Client } = pkg;
 
@@ -8,7 +13,7 @@ export const getHello = (req, res) => {
     res.json({ message: 'Hola desde la API 🚀' });
 };
 
-// Obtener todos los eventos con paginación
+// 2 -Listado de eventos && 3 - Búsqueda de un Evento
 export const getAllEvents = async (req, res) => {
     const { page = 1, limit = 15, name, startdate, tag } = req.query;
     const offset = (page - 1) * limit;
@@ -21,18 +26,11 @@ export const getAllEvents = async (req, res) => {
             SELECT 
                 e.id, e.name, e.description, e.start_date, e.duration_in_minutes,
                 e.price, e.enabled_for_enrollment, e.max_assistance,
-                el.id as event_location_id, el.name as location_name, 
-                el.full_address, el.latitude, el.longitude, el.max_capacity,
-                l.id as location_id, l.name as locality_name,
-                p.id as province_id, p.name as province_name, p.full_name as province_full_name,
-                u.id as creator_id, u.first_name, u.last_name, u.username
+                el.*, u.*
             FROM Events e
             LEFT JOIN Event_Locations el ON e.id_event_location = el.id
-            LEFT JOIN Locations l ON el.id_location = l.id
-            LEFT JOIN Provinces p ON l.id_province = p.id
             LEFT JOIN Users u ON e.id_creator_user = u.id
-            WHERE 1=1
-        `;
+        `; //where 1= 1 --> ?? 
         
         const values = [];
         let paramCount = 0;
@@ -107,17 +105,6 @@ export const getAllEvents = async (req, res) => {
                         latitude: parseFloat(event.latitude),
                         longitude: parseFloat(event.longitude),
                         max_capacity: event.max_capacity,
-                        location: {
-                            id: event.location_id,
-                            name: event.locality_name,
-                            latitude: parseFloat(event.latitude),
-                            longitude: parseFloat(event.longitude),
-                            province: {
-                                id: event.province_id,
-                                name: event.province_name,
-                                full_name: event.province_full_name
-                            }
-                        }
                     },
                     creator_user: {
                         id: event.creator_id,
@@ -129,6 +116,20 @@ export const getAllEvents = async (req, res) => {
                 };
             })
         );
+
+        /*
+        location: {
+                            id: event.location_id,
+                            name: event.locality_name,
+                            latitude: parseFloat(event.latitude),
+                            longitude: parseFloat(event.longitude),
+                            province: {
+                                id: event.province_id,
+                                name: event.province_name,
+                                full_name: event.province_full_name
+                            }
+                        }
+        */
 
         const nextPage = offset + limit < total ? page + 1 : null;
 
@@ -160,7 +161,9 @@ export const getAllEvents = async (req, res) => {
     }
 };
 
-// Obtener evento por ID con detalles completos
+
+
+// 4 - Detalle de un evento
 export const getEventById = async (req, res) => {
     const { id } = req.params;
     const client = new Client(config);
@@ -170,23 +173,18 @@ export const getEventById = async (req, res) => {
         
         const sqlQuery = `
             SELECT 
-                e.*, el.*, l.*, p.*, u.*
+                e.*, el.*, l.*, p.*, u.* 
             FROM Events e
-            LEFT JOIN Event_Locations el ON e.id_event_location = el.id
-            LEFT JOIN Locations l ON el.id_location = l.id
-            LEFT JOIN Provinces p ON l.id_province = p.id
-            LEFT JOIN Users u ON e.id_creator_user = u.id
+            LEFT JOIN event_Locations el ON e.id_event_location = el.id
+            LEFT JOIN locations l ON el.id_location = l.id
+            LEFT JOIN provinces p ON l.id_province = p.id
+            LEFT JOIN users u ON e.id_creator_user = u.id
             WHERE e.id = $1
         `;
         
         const result = await client.query(sqlQuery, [id]);
-        
-        if (result.rowCount === 0) {
-            return res.status(StatusCodes.NOT_FOUND).json({
-                success: false,
-                message: 'Evento no encontrado'
-            });
-        }
+
+        chequearSiExiste(result, "Evento");
 
         const event = result.rows[0];
 
@@ -263,7 +261,7 @@ export const getEventById = async (req, res) => {
     }
 };
 
-// Crear evento
+// 6 - Crear evento
 export const createEvent = async (req, res) => {
     const { 
         name, description, id_event_location, start_date, 
@@ -275,33 +273,10 @@ export const createEvent = async (req, res) => {
 
     try {
         // Validaciones
-        if (!name || name.length < 3) {
-            return res.status(StatusCodes.BAD_REQUEST).json({
-                success: false,
-                message: 'El nombre debe tener al menos 3 caracteres'
-            });
-        }
-
-        if (!description || description.length < 3) {
-            return res.status(StatusCodes.BAD_REQUEST).json({
-                success: false,
-                message: 'La descripción debe tener al menos 3 caracteres'
-            });
-        }
-
-        if (price < 0) {
-            return res.status(StatusCodes.BAD_REQUEST).json({
-                success: false,
-                message: 'El precio no puede ser negativo'
-            });
-        }
-
-        if (duration_in_minutes < 0) {
-            return res.status(StatusCodes.BAD_REQUEST).json({
-                success: false,
-                message: 'La duración no puede ser negativa'
-            });
-        }
+        isValidString(name, "nombre")
+        isValidString(description, "descripción")
+        isPositivo(price, "precio")
+        isPositivo(duration_in_minutes, "duración")
 
         await client.connect();
 
@@ -309,20 +284,21 @@ export const createEvent = async (req, res) => {
         const locationQuery = 'SELECT max_capacity FROM Event_Locations WHERE id = $1';
         const locationResult = await client.query(locationQuery, [id_event_location]);
         
-        if (locationResult.rowCount === 0) {
-            return res.status(StatusCodes.BAD_REQUEST).json({
-                success: false,
-                message: 'La ubicación del evento no existe'
-            });
-        }
-
+        chequearSiExiste(locationResult, "ubicación");
+        //Chequear capacidad 
         if (max_assistance > locationResult.rows[0].max_capacity) {
             return res.status(StatusCodes.BAD_REQUEST).json({
                 success: false,
                 message: 'La capacidad máxima excede la capacidad de la ubicación'
             });
         }
-
+        //Chequear autenticación 
+        if(!userId){
+            return res.status(StatusCodes.UNAUTHORIZED).json({
+                success: false,
+                message: 'Error: el usuario no se encuentra autenticado'
+            });
+        }
         // Insertar evento
         const insertQuery = `
             INSERT INTO Events (name, description, id_event_location, start_date, 
@@ -340,6 +316,7 @@ export const createEvent = async (req, res) => {
 
         const eventId = eventResult.rows[0].id;
 
+        /*
         // Insertar tags si se proporcionan
         if (tags && tags.length > 0) {
             for (const tagName of tags) {
@@ -361,6 +338,7 @@ export const createEvent = async (req, res) => {
                 await client.query(eventTagQuery, [eventId, tagId]);
             }
         }
+        */
 
         res.status(StatusCodes.CREATED).json({
             success: true,
@@ -379,27 +357,24 @@ export const createEvent = async (req, res) => {
     }
 };
 
-// Actualizar evento
+// 6- Actualizar evento
 export const updateEvent = async (req, res) => {
-    const { id } = req.params;
+    const { idEvento } = req.params;
     const updateData = req.body;
     const userId = req.user.id;
     const client = new Client(config);
-
+    //FechaInicio y enrollment, asist máx, ubicación, categoría no deberían estar tmb
+    //
     try {
         await client.connect();
 
         // Verificar que el evento existe y pertenece al usuario
         const checkQuery = 'SELECT id_creator_user FROM Events WHERE id = $1';
-        const checkResult = await client.query(checkQuery, [id]);
+        const checkResult = await client.query(checkQuery, [idEvento]);
 
-        if (checkResult.rowCount === 0) {
-            return res.status(StatusCodes.NOT_FOUND).json({
-                success: false,
-                message: 'Evento no encontrado'
-            });
-        }
+        chequearSiExiste(checkResult, "Evento")
 
+        //Chequear autenticación 
         if (checkResult.rows[0].id_creator_user !== userId) {
             return res.status(StatusCodes.NOT_FOUND).json({
                 success: false,
@@ -408,33 +383,13 @@ export const updateEvent = async (req, res) => {
         }
 
         // Validaciones similares a createEvent
-        if (updateData.name && updateData.name.length < 3) {
-            return res.status(StatusCodes.BAD_REQUEST).json({
-                success: false,
-                message: 'El nombre debe tener al menos 3 caracteres'
-            });
-        }
 
-        if (updateData.description && updateData.description.length < 3) {
-            return res.status(StatusCodes.BAD_REQUEST).json({
-                success: false,
-                message: 'La descripción debe tener al menos 3 caracteres'
-            });
-        }
+        //ERROR: Asume que se envía un precio, duración, nombre y descripción a actualizar
+        isValidString(updateData.name,"nombre")
+        isValidString(updateData.description,"descripción")
 
-        if (updateData.price !== undefined && updateData.price < 0) {
-            return res.status(StatusCodes.BAD_REQUEST).json({
-                success: false,
-                message: 'El precio no puede ser negativo'
-            });
-        }
-
-        if (updateData.duration_in_minutes !== undefined && updateData.duration_in_minutes < 0) {
-            return res.status(StatusCodes.BAD_REQUEST).json({
-                success: false,
-                message: 'La duración no puede ser negativa'
-            });
-        }
+        isPositivo(updateData.price,"precio")
+        isPositivo(updateData.duration_in_minutes,"duración")
 
         // Construir query de actualización dinámicamente
         const updateFields = [];
@@ -448,7 +403,6 @@ export const updateEvent = async (req, res) => {
                 values.push(updateData[key]);
             }
         });
-
         if (updateFields.length === 0) {
             return res.status(StatusCodes.BAD_REQUEST).json({
                 success: false,
@@ -457,11 +411,13 @@ export const updateEvent = async (req, res) => {
         }
 
         paramCount++;
-        values.push(id);
+        values.push(idEvento);
+        //values.push(idEvento);
 
         const updateQuery = `UPDATE Events SET ${updateFields.join(', ')} WHERE id = $${paramCount}`;
         await client.query(updateQuery, values);
 
+        /*
         // Actualizar tags si se proporcionan
         if (updateData.tags) {
             // Eliminar tags existentes
@@ -486,6 +442,8 @@ export const updateEvent = async (req, res) => {
             }
         }
 
+        */
+
         res.status(StatusCodes.OK).json({
             success: true,
             message: 'Evento actualizado exitosamente'
@@ -502,9 +460,9 @@ export const updateEvent = async (req, res) => {
     }
 };
 
-// Eliminar evento
+// 6- Eliminar evento
 export const deleteEvent = async (req, res) => {
-    const { id } = req.params;
+    const { idEvento } = req.params;
     const userId = req.user.id;
     const client = new Client(config);
 
@@ -514,24 +472,27 @@ export const deleteEvent = async (req, res) => {
         // Verificar que el evento existe y pertenece al usuario
         const checkQuery = 'SELECT id_creator_user FROM Events WHERE id = $1';
         const checkResult = await client.query(checkQuery, [id]);
-
-        if (checkResult.rowCount === 0) {
-            return res.status(StatusCodes.NOT_FOUND).json({
+        
+        //Chequear autenticación
+        if(!userId){
+            return res.status(StatusCodes.UNAUTHORIZED).json({
                 success: false,
-                message: 'Evento no encontrado'
+                message: 'Error: el usuario no se encuentra autenticado'
             });
         }
 
+        chequearSiExiste(checkResult, "Evento")
+        //Chequear autenticación
         if (checkResult.rows[0].id_creator_user !== userId) {
             return res.status(StatusCodes.NOT_FOUND).json({
                 success: false,
                 message: 'No tienes permisos para eliminar este evento'
             });
         }
-
+        
         // Verificar si hay usuarios registrados
         const enrollmentQuery = 'SELECT COUNT(*) FROM Event_Enrollments WHERE id_event = $1';
-        const enrollmentResult = await client.query(enrollmentQuery, [id]);
+        const enrollmentResult = await client.query(enrollmentQuery, [idEvento]);
 
         if (parseInt(enrollmentResult.rows[0].count) > 0) {
             return res.status(StatusCodes.BAD_REQUEST).json({
@@ -541,10 +502,10 @@ export const deleteEvent = async (req, res) => {
         }
 
         // Eliminar tags del evento
-        await client.query('DELETE FROM Event_Tags WHERE id_event = $1', [id]);
+        await client.query('DELETE FROM Event_Tags WHERE id_event = $1', [idEvento]);
 
         // Eliminar evento
-        await client.query('DELETE FROM Events WHERE id = $1', [id]);
+        await client.query('DELETE FROM Events WHERE id = $1', [idEvento]);
 
         res.status(StatusCodes.OK).json({
             success: true,
@@ -562,7 +523,7 @@ export const deleteEvent = async (req, res) => {
     }
 };
 
-// Inscribirse a un evento
+// 7- Inscribirse a un evento
 export const enrollInEvent = async (req, res) => {
     const { id } = req.params;
     const userId = req.user.id;

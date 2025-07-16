@@ -1,3 +1,10 @@
+DUDAS
+
+Actualizar evento: 
+- agregar validaciones para FechaInicio y enrollment, asist máx, ubicación, categoría 
+- ERROR: Asume que se envía un precio, duración, nombre y descripción a actualizar
+
+
 # API + APP EVENTOS - NodeJs
 
 ## Descripción

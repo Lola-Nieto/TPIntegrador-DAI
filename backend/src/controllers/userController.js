@@ -9,7 +9,7 @@ import {isValidString} from './validaciones/stringValidacion.js'
 
 const { Client } = pkg;
 
-// Validación de email
+// 5- Autenticación de Usuarios
 
 
 // Registro de usuario
