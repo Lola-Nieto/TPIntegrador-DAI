@@ -2,25 +2,17 @@ import pkg from 'pg';
 import { StatusCodes } from 'http-status-codes';
 import config from '../configs/db-configs.js';
 
-const { Client } = pkg;
+const { Pool } = pkg;
+const pool = new Pool(config);
 
 // Obtener todas las ubicaciones del usuario autenticado
 export const getUserEventLocations = async (req, res) => {
     const userId = req.user.id;
     const { page = 1, limit = 15 } = req.query;
     const offset = (page - 1) * limit;
-    const client = new Client(config);
 
     try {
-        await client.connect();
-
-        // Contar total
-        const countQuery = 'SELECT COUNT(*) FROM Event_Locations WHERE id_creator_user = $1';
-        const countResult = await client.query(countQuery, [userId]);
-        const total = parseInt(countResult.rows[0].count);
-
-        // Obtener ubicaciones con paginación
-        const sqlQuery = `
+        const result = await pool.query(`
             SELECT 
                 el.*, l.name as locality_name, l.latitude as locality_latitude, l.longitude as locality_longitude,
                 p.name as province_name, p.full_name as province_full_name
@@ -30,9 +22,7 @@ export const getUserEventLocations = async (req, res) => {
             WHERE el.id_creator_user = $1
             ORDER BY el.name ASC
             LIMIT $2 OFFSET $3
-        `;
-        
-        const result = await client.query(sqlQuery, [userId, limit, offset]);
+        `, [userId, limit, offset]);
 
         const locations = result.rows.map(row => ({
             id: row.id,
@@ -55,6 +45,9 @@ export const getUserEventLocations = async (req, res) => {
             }
         }));
 
+        const countResult = await pool.query('SELECT COUNT(*) FROM Event_Locations WHERE id_creator_user = $1', [userId]);
+        const total = parseInt(countResult.rows[0].count);
+
         const nextPage = offset + limit < total ? page + 1 : null;
 
         res.status(StatusCodes.OK).json({
@@ -73,8 +66,6 @@ export const getUserEventLocations = async (req, res) => {
             success: false,
             message: 'Error interno del servidor'
         });
-    } finally {
-        await client.end();
     }
 };
 
@@ -82,12 +73,9 @@ export const getUserEventLocations = async (req, res) => {
 export const getEventLocationById = async (req, res) => {
     const { id } = req.params;
     const userId = req.user.id;
-    const client = new Client(config);
 
     try {
-        await client.connect();
-
-        const sqlQuery = `
+        const result = await pool.query(`
             SELECT 
                 el.*, l.name as locality_name, l.latitude as locality_latitude, l.longitude as locality_longitude,
                 p.name as province_name, p.full_name as province_full_name
@@ -95,9 +83,7 @@ export const getEventLocationById = async (req, res) => {
             LEFT JOIN Locations l ON el.id_location = l.id
             LEFT JOIN Provinces p ON l.id_province = p.id
             WHERE el.id = $1 AND el.id_creator_user = $2
-        `;
-        
-        const result = await client.query(sqlQuery, [id, userId]);
+        `, [id, userId]);
 
         if (result.rowCount === 0) {
             return res.status(StatusCodes.NOT_FOUND).json({
@@ -137,8 +123,6 @@ export const getEventLocationById = async (req, res) => {
             success: false,
             message: 'Error interno del servidor'
         });
-    } finally {
-        await client.end();
     }
 };
 
@@ -149,7 +133,6 @@ export const createEventLocation = async (req, res) => {
         latitude, longitude 
     } = req.body;
     const userId = req.user.id;
-    const client = new Client(config);
 
     try {
         // Validaciones
@@ -174,11 +157,8 @@ export const createEventLocation = async (req, res) => {
             });
         }
 
-        await client.connect();
-
         // Verificar que la ubicación existe
-        const locationQuery = 'SELECT id FROM Locations WHERE id = $1';
-        const locationResult = await client.query(locationQuery, [id_location]);
+        const locationResult = await pool.query('SELECT id FROM Locations WHERE id = $1', [id_location]);
 
         if (locationResult.rowCount === 0) {
             return res.status(StatusCodes.BAD_REQUEST).json({
@@ -188,14 +168,12 @@ export const createEventLocation = async (req, res) => {
         }
 
         // Insertar ubicación de evento
-        const insertQuery = `
+        const result = await pool.query(`
             INSERT INTO Event_Locations (id_location, name, full_address, max_capacity, 
                                        latitude, longitude, id_creator_user)
             VALUES ($1, $2, $3, $4, $5, $6, $7)
             RETURNING id
-        `;
-        
-        const result = await client.query(insertQuery, [
+        `, [
             id_location, name, full_address, max_capacity,
             latitude, longitude, userId
         ]);
@@ -212,8 +190,6 @@ export const createEventLocation = async (req, res) => {
             success: false,
             message: 'Error interno del servidor'
         });
-    } finally {
-        await client.end();
     }
 };
 
@@ -222,14 +198,10 @@ export const updateEventLocation = async (req, res) => {
     const { id } = req.params;
     const updateData = req.body;
     const userId = req.user.id;
-    const client = new Client(config);
 
     try {
-        await client.connect();
-
         // Verificar que la ubicación existe y pertenece al usuario
-        const checkQuery = 'SELECT id_creator_user FROM Event_Locations WHERE id = $1';
-        const checkResult = await client.query(checkQuery, [id]);
+        const checkResult = await pool.query('SELECT id_creator_user FROM Event_Locations WHERE id = $1', [id]);
 
         if (checkResult.rowCount === 0) {
             return res.status(StatusCodes.NOT_FOUND).json({
@@ -291,7 +263,7 @@ export const updateEventLocation = async (req, res) => {
         values.push(id);
 
         const updateQuery = `UPDATE Event_Locations SET ${updateFields.join(', ')} WHERE id = $${paramCount}`;
-        await client.query(updateQuery, values);
+        await pool.query(updateQuery, values);
 
         res.status(StatusCodes.OK).json({
             success: true,
@@ -304,8 +276,6 @@ export const updateEventLocation = async (req, res) => {
             success: false,
             message: 'Error interno del servidor'
         });
-    } finally {
-        await client.end();
     }
 };
 
@@ -313,14 +283,10 @@ export const updateEventLocation = async (req, res) => {
 export const deleteEventLocation = async (req, res) => {
     const { id } = req.params;
     const userId = req.user.id;
-    const client = new Client(config);
 
     try {
-        await client.connect();
-
         // Verificar que la ubicación existe y pertenece al usuario
-        const checkQuery = 'SELECT id_creator_user FROM Event_Locations WHERE id = $1';
-        const checkResult = await client.query(checkQuery, [id]);
+        const checkResult = await pool.query('SELECT id_creator_user FROM Event_Locations WHERE id = $1', [id]);
 
         if (checkResult.rowCount === 0) {
             return res.status(StatusCodes.NOT_FOUND).json({
@@ -337,8 +303,7 @@ export const deleteEventLocation = async (req, res) => {
         }
 
         // Verificar si hay eventos usando esta ubicación
-        const eventsQuery = 'SELECT COUNT(*) FROM Events WHERE id_event_location = $1';
-        const eventsResult = await client.query(eventsQuery, [id]);
+        const eventsResult = await pool.query('SELECT COUNT(*) FROM Events WHERE id_event_location = $1', [id]);
 
         if (parseInt(eventsResult.rows[0].count) > 0) {
             return res.status(StatusCodes.BAD_REQUEST).json({
@@ -348,7 +313,7 @@ export const deleteEventLocation = async (req, res) => {
         }
 
         // Eliminar ubicación
-        await client.query('DELETE FROM Event_Locations WHERE id = $1', [id]);
+        await pool.query('DELETE FROM Event_Locations WHERE id = $1', [id]);
 
         res.status(StatusCodes.OK).json({
             success: true,
@@ -361,7 +326,5 @@ export const deleteEventLocation = async (req, res) => {
             success: false,
             message: 'Error interno del servidor'
         });
-    } finally {
-        await client.end();
     }
 }; 

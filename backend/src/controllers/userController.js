@@ -6,31 +6,24 @@ import { generateToken } from '../../middleware/auth.js';
 import {isValidEmail} from './validaciones/mailValidacion.js'
 import {isValidString} from './validaciones/stringValidacion.js'
 
-
-const { Client } = pkg;
+const { Pool } = pkg;
+const pool = new Pool(config);
 
 // 5- Autenticación de Usuarios
-
 
 // Registro de usuario
 export const registerUser = async (req, res) => {
     const { first_name, last_name, username, password } = req.body;
-    const client = new Client(config);
 
     try {
-        
         isValidString(first_name, "nombre");
         isValidString(last_name, "apellido");
-
         isValidEmail(username);
-
         isValidString(password, "contraseña");
-
-        await client.connect();
 
         // Verificar si el usuario ya existe
         const checkUserQuery = 'SELECT id FROM Users WHERE username = $1';
-        const existingUser = await client.query(checkUserQuery, [username]);
+        const existingUser = await pool.query(checkUserQuery, [username]);
 
         if (existingUser.rowCount > 0) {
             return res.status(StatusCodes.BAD_REQUEST).json({
@@ -48,7 +41,7 @@ export const registerUser = async (req, res) => {
             VALUES ($1, $2, $3, $4)
             RETURNING id, first_name, last_name, username
         `;
-        const result = await client.query(insertQuery, [
+        const result = await pool.query(insertQuery, [
             first_name, last_name, username, hashedPassword
         ]);
 
@@ -64,15 +57,12 @@ export const registerUser = async (req, res) => {
             success: false,
             message: 'Error interno del servidor'
         });
-    } finally {
-        await client.end();
     }
 };
 
 // Login de usuario
 export const loginUser = async (req, res) => {
     const { username, password } = req.body;
-    const client = new Client(config);
 
     try {
         // Validación de email
@@ -84,11 +74,9 @@ export const loginUser = async (req, res) => {
             });
         }
 
-        await client.connect();
-
         // Buscar usuario
         const query = 'SELECT * FROM Users WHERE username = $1';
-        const result = await client.query(query, [username]);
+        const result = await pool.query(query, [username]);
 
         if (result.rowCount === 0) {
             return res.status(StatusCodes.UNAUTHORIZED).json({
@@ -127,7 +115,5 @@ export const loginUser = async (req, res) => {
             message: 'Error interno del servidor',
             token: ''
         });
-    } finally {
-        await client.end();
     }
 }; 

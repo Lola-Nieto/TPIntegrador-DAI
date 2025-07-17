@@ -1,7 +1,10 @@
 import jwt from 'jsonwebtoken';
 import { StatusCodes } from 'http-status-codes';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'tu_secreto_jwt_super_seguro';
+if (!process.env.JWT_SECRET) {
+    throw new Error('Falta la variable de entorno JWT_SECRET');
+}
+const JWT_SECRET = process.env.JWT_SECRET;
 
 export const authenticateToken = (req, res, next) => {
     const authHeader = req.headers['authorization'];

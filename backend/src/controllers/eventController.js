@@ -6,8 +6,8 @@ import {isValidString} from './validaciones/stringValidacion.js'
 import {chequearSiExiste} from './validaciones/existenciaValidacion.js'
 
 
-
-const { Client } = pkg;
+const { Pool } = pkg;
+const pool = new Pool(config);
 
 export const getHello = (req, res) => {
     res.json({ message: 'Hola desde la API 🚀' });
@@ -17,7 +17,7 @@ export const getHello = (req, res) => {
 export const getAllEvents = async (req, res) => {
     const { page = 1, limit = 15, name, startdate, tag } = req.query;
     const offset = (page - 1) * limit;
-    const client = new Client(config);
+    const client = pool;
 
     try {
         await client.connect();
@@ -156,8 +156,6 @@ export const getAllEvents = async (req, res) => {
             success: false,
             message: 'Error interno del servidor'
         });
-    } finally {
-        await client.end();
     }
 };
 
@@ -166,7 +164,7 @@ export const getAllEvents = async (req, res) => {
 // 4 - Detalle de un evento
 export const getEventById = async (req, res) => {
     const { id } = req.params;
-    const client = new Client(config);
+    const client = pool;
 
     try {
         await client.connect();
@@ -256,9 +254,7 @@ export const getEventById = async (req, res) => {
             success: false,
             message: 'Error interno del servidor'
         });
-    } finally {
-        await client.end();
-    }
+    } 
 };
 
 // 6 - Crear evento
@@ -269,7 +265,7 @@ export const createEvent = async (req, res) => {
         max_assistance, tags 
     } = req.body;
     const userId = req.user.id;
-    const client = new Client(config);
+    const client = pool;
 
     try {
         // Validaciones
@@ -352,9 +348,7 @@ export const createEvent = async (req, res) => {
             success: false,
             message: 'Error interno del servidor'
         });
-    } finally {
-        await client.end();
-    }
+    } 
 };
 
 // 6- Actualizar evento
@@ -362,7 +356,7 @@ export const updateEvent = async (req, res) => {
     const { idEvento } = req.params;
     const updateData = req.body;
     const userId = req.user.id;
-    const client = new Client(config);
+    const client = pool;
     //FechaInicio y enrollment, asist máx, ubicación, categoría no deberían estar tmb
     //
     try {
@@ -455,8 +449,6 @@ export const updateEvent = async (req, res) => {
             success: false,
             message: 'Error interno del servidor'
         });
-    } finally {
-        await client.end();
     }
 };
 
@@ -464,14 +456,14 @@ export const updateEvent = async (req, res) => {
 export const deleteEvent = async (req, res) => {
     const { idEvento } = req.params;
     const userId = req.user.id;
-    const client = new Client(config);
+    const client = pool;
 
     try {
         await client.connect();
 
         // Verificar que el evento existe y pertenece al usuario
         const checkQuery = 'SELECT id_creator_user FROM Events WHERE id = $1';
-        const checkResult = await client.query(checkQuery, [id]);
+        const checkResult = await client.query(checkQuery, [idEvento]);
         
         //Chequear autenticación
         if(!userId){
@@ -518,8 +510,6 @@ export const deleteEvent = async (req, res) => {
             success: false,
             message: 'Error interno del servidor'
         });
-    } finally {
-        await client.end();
     }
 };
 
@@ -527,7 +517,7 @@ export const deleteEvent = async (req, res) => {
 export const enrollInEvent = async (req, res) => {
     const { id } = req.params;
     const userId = req.user.id;
-    const client = new Client(config);
+    const client = pool;
 
     try {
         await client.connect();
@@ -609,8 +599,6 @@ export const enrollInEvent = async (req, res) => {
             success: false,
             message: 'Error interno del servidor'
         });
-    } finally {
-        await client.end();
     }
 };
 
@@ -618,7 +606,7 @@ export const enrollInEvent = async (req, res) => {
 export const cancelEnrollment = async (req, res) => {
     const { id } = req.params;
     const userId = req.user.id;
-    const client = new Client(config);
+    const client = pool;
 
     try {
         await client.connect();
@@ -673,8 +661,6 @@ export const cancelEnrollment = async (req, res) => {
             success: false,
             message: 'Error interno del servidor'
         });
-    } finally {
-        await client.end();
     }
 };
 
@@ -683,7 +669,7 @@ export const getEventParticipants = async (req, res) => {
     const { id } = req.params;
     const { page = 1, limit = 15 } = req.query;
     const offset = (page - 1) * limit;
-    const client = new Client(config);
+    const client = pool;
 
     try {
         await client.connect();
@@ -747,15 +733,13 @@ export const getEventParticipants = async (req, res) => {
             success: false,
             message: 'Error interno del servidor'
         });
-    } finally {
-        await client.end();
     }
 };
 
 // Mantener las funciones existentes para compatibilidad
 export const getEventByName = async (req, res) => {
     const { name } = req.params;
-    const client = new Client(config);
+    const client = pool;
 
     try {
         await client.connect();
@@ -770,14 +754,12 @@ export const getEventByName = async (req, res) => {
     } catch (error) {
         console.error(error);
         res.status(StatusCodes.INTERNAL_SERVER_ERROR).send('Error interno del servidor');
-    } finally {
-        await client.end();
     }
 };
 
 export const getEventByStartDate = async (req, res) => {
     const { startdate } = req.params;
-    const client = new Client(config);
+    const client = pool;
 
     try {
         await client.connect();
@@ -792,14 +774,12 @@ export const getEventByStartDate = async (req, res) => {
     } catch (error) {
         console.error(error);
         res.status(StatusCodes.INTERNAL_SERVER_ERROR).send('Error interno del servidor');
-    } finally {
-        await client.end();
     }
 };
 
 export const getEventByTag = async (req, res) => {
     const { tag } = req.params;
-    const client = new Client(config);
+    const client = pool;
 
     try {
         await client.connect();
@@ -814,8 +794,6 @@ export const getEventByTag = async (req, res) => {
     } catch (error) {
         console.error(error);
         res.status(StatusCodes.INTERNAL_SERVER_ERROR).send('Error interno del servidor');
-    } finally {
-        await client.end();
     }
 };
   
