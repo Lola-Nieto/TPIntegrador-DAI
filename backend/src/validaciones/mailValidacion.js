@@ -1,11 +1,8 @@
-export const isValidEmail = (email) => {
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (emailRegex.test(email)) {
-        return res.status(StatusCodes.BAD_REQUEST).json({
-            success: false,
-            message: 'El mail es inválido'
-        });
+export function isValidEmail(email) {
+    // Expresión regular simple para validar emails
+    const re = /^[^@]+@[^@]+\.[^@]+$/;
+    if (!email || typeof email !== 'string' || !re.test(email)) {
+        throw new Error('El mail es inválido');
     }
-};
-
-
+    return true;
+}

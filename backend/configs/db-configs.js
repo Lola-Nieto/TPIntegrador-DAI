@@ -7,6 +7,9 @@ requiredEnv.forEach((envVar) => {
     if (!process.env[envVar]) {
         throw new Error(`Falta la variable de entorno requerida: ${envVar}`);
     }
+    else {
+        console.log(`VARIABLE ${envVar} OK`)
+    }
 });
 
 const config = {

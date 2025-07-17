@@ -3,8 +3,8 @@ import bcrypt from 'bcryptjs';
 import { StatusCodes } from 'http-status-codes';
 import config from '../../configs/db-configs.js';
 import { generateToken } from '../../middleware/auth.js';
-import {isValidEmail} from './validaciones/mailValidacion.js'
-import {isValidString} from './validaciones/stringValidacion.js'
+import {isValidEmail} from '../validaciones/mailValidacion.js'
+import {isValidString} from '../validaciones/stringValidacion.js'
 
 const { Pool } = pkg;
 const pool = new Pool(config);
@@ -16,11 +16,16 @@ export const registerUser = async (req, res) => {
     const { first_name, last_name, username, password } = req.body;
 
     try {
-        isValidString(first_name, "nombre");
-        isValidString(last_name, "apellido");
-        isValidEmail(username);
-        isValidString(password, "contraseña");
-
+        
+// backend/src/controllers/userController.js
+        try {
+            isValidString(first_name, "nombre");
+            isValidString(last_name, "apellido");
+            isValidEmail(username);
+            isValidString(password, "contraseña");
+        } catch (error) {
+            return res.status(StatusCodes.BAD_REQUEST).json({ success: false, message: error.message });
+        }
         // Verificar si el usuario ya existe
         const checkUserQuery = 'SELECT id FROM Users WHERE username = $1';
         const existingUser = await pool.query(checkUserQuery, [username]);
@@ -65,13 +70,13 @@ export const loginUser = async (req, res) => {
     const { username, password } = req.body;
 
     try {
-        // Validación de email
-        if (!isValidEmail(username)) {
-            return res.status(StatusCodes.BAD_REQUEST).json({
-                success: false,
-                message: 'El email es inválido',
-                token: ''
-            });
+        try {
+            isValidEmail(username);
+            isValidString(password, "contraseña");
+        } catch (error) {
+            console.error(error)
+            return res.status(StatusCodes.BAD_REQUEST).json({ success: false, message: error.message });
+            
         }
 
         // Buscar usuario

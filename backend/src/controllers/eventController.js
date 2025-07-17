@@ -1,9 +1,8 @@
 import pkg from 'pg';
 import { StatusCodes } from 'http-status-codes';
 import config from '../../configs/db-configs.js';
-import {isValidEmail} from './validaciones/mailValidacion.js'
-import {isValidString} from './validaciones/stringValidacion.js'
-import {chequearSiExiste} from './validaciones/existenciaValidacion.js'
+import {isValidString} from '../validaciones/stringValidacion.js'
+import {chequearSiExiste} from '../validaciones/existenciaValidacion.js'
 
 
 const { Pool } = pkg;
@@ -23,14 +22,21 @@ export const getAllEvents = async (req, res) => {
         await client.connect();
         
         let sqlQuery = `
-            SELECT 
-                e.id, e.name, e.description, e.start_date, e.duration_in_minutes,
-                e.price, e.enabled_for_enrollment, e.max_assistance,
-                el.*, u.*
-            FROM Events e
-            LEFT JOIN Event_Locations el ON e.id_event_location = el.id
-            LEFT JOIN Users u ON e.id_creator_user = u.id
-        `; //where 1= 1 --> ?? 
+             SELECT 
+    e.id, e.name, e.description, e.start_date, e.duration_in_minutes,
+    e.price, e.enabled_for_enrollment, e.max_assistance,
+    el.id AS event_location_id, el.name AS location_name, 
+    el.full_address, el.latitude, el.longitude, el.max_capacity,
+    l.id AS location_id, l.name AS locality_name,
+    p.id AS province_id, p.name AS province_name, p.full_name AS province_full_name,
+    u.id AS creator_id, u.first_name, u.last_name, u.username
+FROM events e
+LEFT JOIN event_locations el ON e.id_event_location = el.id
+LEFT JOIN locations l ON el.id_location = l.id
+LEFT JOIN provinces p ON l.id_province = p.id
+LEFT JOIN users u ON e.id_creator_user = u.id
+WHERE 1=1
+`;
         
         const values = [];
         let paramCount = 0;
@@ -63,9 +69,9 @@ export const getAllEvents = async (req, res) => {
         const countResult = await client.query(countQuery, values);
         const total = parseInt(countResult.rows[0].count);
 
-        // Agregar paginación
+        // Agregar paginación y ordenamiento por id
         paramCount++;
-        sqlQuery += ` ORDER BY e.start_date ASC LIMIT $${paramCount} OFFSET $${paramCount + 1}`;
+        sqlQuery += ` ORDER BY e.id ASC LIMIT $${paramCount} OFFSET $${paramCount + 1}`;
         values.push(limit, offset);
 
         const result = await client.query(sqlQuery, values);
@@ -105,6 +111,17 @@ export const getAllEvents = async (req, res) => {
                         latitude: parseFloat(event.latitude),
                         longitude: parseFloat(event.longitude),
                         max_capacity: event.max_capacity,
+                        location: {
+                            id: event.location_id,
+                            name: event.locality_name,
+                            latitude: parseFloat(event.latitude),
+                            longitude: parseFloat(event.longitude),
+                            province: {
+                                id: event.province_id,
+                                name: event.province_name,
+                                full_name: event.province_full_name
+                            }
+                        }
                     },
                     creator_user: {
                         id: event.creator_id,
@@ -117,20 +134,8 @@ export const getAllEvents = async (req, res) => {
             })
         );
 
-        /*
-        location: {
-                            id: event.location_id,
-                            name: event.locality_name,
-                            latitude: parseFloat(event.latitude),
-                            longitude: parseFloat(event.longitude),
-                            province: {
-                                id: event.province_id,
-                                name: event.province_name,
-                                full_name: event.province_full_name
-                            }
-                        }
-        */
-
+        
+        
         const nextPage = offset + limit < total ? page + 1 : null;
 
         res.status(StatusCodes.OK).json({
@@ -182,7 +187,17 @@ export const getEventById = async (req, res) => {
         
         const result = await client.query(sqlQuery, [id]);
 
-        chequearSiExiste(result, "Evento");
+        try{
+            chequearSiExiste(result, "Evento");
+
+        }catch(error){
+            return res.status(StatusCodes.NOT_FOUND).json({
+                success: false,
+                message:error.message
+            });
+        }
+
+   
 
         const event = result.rows[0];
 
@@ -280,7 +295,15 @@ export const createEvent = async (req, res) => {
         const locationQuery = 'SELECT max_capacity FROM Event_Locations WHERE id = $1';
         const locationResult = await client.query(locationQuery, [id_event_location]);
         
-        chequearSiExiste(locationResult, "ubicación");
+        try{
+            chequearSiExiste(locationResult, "ubicación");
+
+        }catch(error){
+            return res.status(StatusCodes.NOT_FOUND).json({
+                success: false,
+                message:error.message
+            });
+        }
         //Chequear capacidad 
         if (max_assistance > locationResult.rows[0].max_capacity) {
             return res.status(StatusCodes.BAD_REQUEST).json({
@@ -365,8 +388,16 @@ export const updateEvent = async (req, res) => {
         // Verificar que el evento existe y pertenece al usuario
         const checkQuery = 'SELECT id_creator_user FROM Events WHERE id = $1';
         const checkResult = await client.query(checkQuery, [idEvento]);
+        
+        try{
+            chequearSiExiste(checkResult, "Evento")
 
-        chequearSiExiste(checkResult, "Evento")
+        }catch(error){
+            return res.status(StatusCodes.NOT_FOUND).json({
+                success: false,
+                message:error.message
+            });
+        }
 
         //Chequear autenticación 
         if (checkResult.rows[0].id_creator_user !== userId) {
@@ -472,8 +503,15 @@ export const deleteEvent = async (req, res) => {
                 message: 'Error: el usuario no se encuentra autenticado'
             });
         }
+        try{
+            chequearSiExiste(checkResult, "Evento")
 
-        chequearSiExiste(checkResult, "Evento")
+        }catch(error){
+            return res.status(StatusCodes.NOT_FOUND).json({
+                success: false,
+                message:error.message
+            });
+        }
         //Chequear autenticación
         if (checkResult.rows[0].id_creator_user !== userId) {
             return res.status(StatusCodes.NOT_FOUND).json({

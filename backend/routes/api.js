@@ -1,7 +1,7 @@
 import express from 'express';
-import { 
-    getHello, 
-    getAllEvents, 
+import {
+    getHello,
+    getAllEvents,
     getEventById,
     createEvent,
     updateEvent,
@@ -9,18 +9,18 @@ import {
     enrollInEvent,
     cancelEnrollment,
     getEventParticipants,
-    getEventByName, 
-    getEventByStartDate, 
-    getEventByTag 
-} from '../controllers/apiController.js';
-import { registerUser, loginUser } from '../controllers/userController.js';
-import { 
+    getEventByName,
+    getEventByStartDate,
+    getEventByTag
+} from '../src/controllers/eventController.js';
+import { registerUser, loginUser } from '../src/controllers/userController.js';
+import {
     getUserEventLocations,
     getEventLocationById,
     createEventLocation,
     updateEventLocation,
     deleteEventLocation
-} from '../controllers/eventLocationController.js';
+} from '../src/controllers/eventLocationController.js';
 import { authenticateToken } from '../middleware/auth.js';
 
 const router = express.Router();

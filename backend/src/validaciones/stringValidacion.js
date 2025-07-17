@@ -1,10 +1,10 @@
 
+
+import { StatusCodes } from 'http-status-codes';
+
 export const isValidString = (string, nombreCampo) => {
-    if (!string || string.length < 3) {
-    return res.status(StatusCodes.BAD_REQUEST).json({
-        success: false,
-        message: `El ${nombreCampo} debe tener al menos 3 caracteres`
-    });
-}
-return true;
+    if (!string || typeof string !== 'string' || string.trim() == '' || string.length < 3) {
+        throw new Error(`El campo ${nombreCampo} es inválido`);
+        console.log(Error)
+    };
 }
