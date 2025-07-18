@@ -1,12 +1,6 @@
 import pkg from 'pg';
 import { StatusCodes } from 'http-status-codes';
-import config from '../../configs/db-configs.js';
-import {isValidString} from '../validaciones/stringValidacion.js'
-import {chequearSiExiste} from '../validaciones/existenciaValidacion.js'
-
-
-const { Pool } = pkg;
-const pool = new Pool(config);
+import {validaciones} from '../validaciones/stringValidacion.js'
 
 export const getHello = (req, res) => {
     res.json({ message: 'Hola desde la API 🚀' });
@@ -17,7 +11,7 @@ export const getAllEvents = async (req, res) => {
     const { page = 1, limit = 15, name, startdate, tag } = req.query;
     const offset = (page - 1) * limit;
     const client = pool;
-
+    
     try {
         await client.connect();
         
@@ -65,9 +59,11 @@ WHERE 1=1
         }
 
         // Contar total
+        /*
         const countQuery = sqlQuery.replace(/SELECT.*FROM/, 'SELECT COUNT(*) FROM');
         const countResult = await client.query(countQuery, values);
         const total = parseInt(countResult.rows[0].count);
+        */
 
         // Agregar paginación y ordenamiento por id
         paramCount++;
@@ -170,6 +166,7 @@ WHERE 1=1
 export const getEventById = async (req, res) => {
     const { id } = req.params;
     const client = pool;
+
 
     try {
         await client.connect();

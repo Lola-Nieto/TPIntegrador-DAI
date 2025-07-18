@@ -3,8 +3,8 @@ import bcrypt from 'bcryptjs';
 import { StatusCodes } from 'http-status-codes';
 import config from '../../configs/db-configs.js';
 import { generateToken } from '../../middleware/auth.js';
-import {isValidEmail} from '../validaciones/mailValidacion.js'
-import {isValidString} from '../validaciones/stringValidacion.js'
+import {validaciones} from '../helpers/validaciones/validaciones-helper.js'
+import {userService} from '../services/userService.js'
 
 const { Pool } = pkg;
 const pool = new Pool(config);
@@ -19,26 +19,20 @@ export const registerUser = async (req, res) => {
         
 // backend/src/controllers/userController.js
         try {
-            isValidString(first_name, "nombre");
-            isValidString(last_name, "apellido");
-            isValidEmail(username);
-            isValidString(password, "contraseña");
+            validaciones.isValidString(first_name, "nombre");
+            validaciones.isValidString(last_name, "apellido");
+            validaciones.isValidEmail(username);
+            validaciones.isValidString(password, "contraseña");
         } catch (error) {
             return res.status(StatusCodes.BAD_REQUEST).json({ success: false, message: error.message });
         }
-        // Verificar si el usuario ya existe
-        const checkUserQuery = 'SELECT id FROM Users WHERE username = $1';
-        const existingUser = await pool.query(checkUserQuery, [username]);
-
-        if (existingUser.rowCount > 0) {
-            return res.status(StatusCodes.BAD_REQUEST).json({
-                success: false,
-                message: 'El usuario ya existe'
-            });
+           const newId = await userService.registerUser(username);
+           if (newId > 0){
+            res.status(StatusCodes.CREATED).json(newId);
+        } else {
+            res.status(StatusCodes.BAD_REQUEST);
         }
-
-        // Encriptar contraseña
-        const hashedPassword = await bcrypt.hash(password, 10);
+    });
 
         // Insertar nuevo usuario
         const insertQuery = `
